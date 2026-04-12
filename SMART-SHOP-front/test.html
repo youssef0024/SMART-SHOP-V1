@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>SMART-SHOP | Authentification</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 400px; }
+        h2 { color: #1c1e21; text-align: center; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.3s; }
+        .btn-primary { background: #1877f2; }
+        .btn-primary:hover { background: #166fe5; }
+        .btn-verify { background: #e67e22; }
+        .hidden { display: none; }
+        .toggle-link { text-align: center; margin-top: 15px; font-size: 14px; color: #1877f2; cursor: pointer; }
+        #msg { margin-top: 15px; padding: 10px; border-radius: 6px; display: none; text-align: center; font-size: 13px; }
+        .error { background: #ffebe9; color: #ce3c2e; border: 1px solid #ce3c2e; }
+        .success { background: #e6ffed; color: #22863a; border: 1px solid #22863a; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="register-section">
+        <h2>📝 Créer un compte</h2>
+        <input type="text" id="reg-firstname" placeholder="Prénom">
+        <input type="text" id="reg-lastname" placeholder="Nom">
+        <input type="email" id="reg-email" placeholder="Email (ex: youssef@gmail.com)">
+        <input type="password" id="reg-pass" placeholder="Mot de passe">
+        <button class="btn-primary" onclick="register()">S'inscrire</button>
+        <div class="toggle-link" onclick="toggleForm()">Déjà un compte ? Se connecter</div>
+    </div>
+
+    <div id="login-section" class="hidden">
+        <h2>🚀 SMART-SHOP</h2>
+        <input type="email" id="login-email" placeholder="Email">
+        <input type="password" id="login-pass" placeholder="Mot de passe">
+        <button class="btn-primary" onclick="preLogin()">Se connecter</button>
+        <div class="toggle-link" onclick="toggleForm()">Besoin d'un compte ? S'inscrire</div>
+    </div>
+
+    <div id="otp-section" class="hidden">
+        <h2>🛡️ Double Authentification</h2>
+        <p style="text-align: center; font-size: 14px; color: #555;">Un code a été envoyé sur votre boîte mail.</p>
+        <input type="text" id="otp-code" placeholder="Code à 6 chiffres" maxlength="6">
+        <button class="btn-verify" onclick="confirmOtp()">Vérifier le code</button>
+    </div>
+
+    <div id="msg"></div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8080/api/v1/auth';
+    let userEmail = "";
+
+    function showMsg(text, isError) {
+        const msgDiv = document.getElementById('msg');
+        msgDiv.style.display = 'block';
+        msgDiv.innerText = text;
+        msgDiv.className = isError ? 'error' : 'success';
+    }
+
+    function toggleForm() {
+        document.getElementById('register-section').classList.toggle('hidden');
+        document.getElementById('login-section').classList.toggle('hidden');
+        document.getElementById('msg').style.display = 'none';
+    }
+
+    // --- Inscription ---
+    async function register() {
+        const body = {
+            firstname: document.getElementById('reg-firstname').value,
+            lastname: document.getElementById('reg-lastname').value,
+            email: document.getElementById('reg-email').value,
+            password: document.getElementById('reg-pass').value,
+            role: "USER"
+        };
+
+        try {
+            const res = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (res.ok) {
+                showMsg("✅ Compte créé ! Connectez-vous maintenant.", false);
+                toggleForm();
+            } else {
+                showMsg("❌ Échec de l'inscription. L'email existe peut-être déjà.", true);
+            }
+        } catch (e) { showMsg("❌ Serveur injoignable.", true); }
+    }
+
+    // --- Phase 1 Connexion (Envoi OTP) ---
+    async function preLogin() {
+        userEmail = document.getElementById('login-email').value;
+        const password = document.getElementById('login-pass').value;
+
+        try {
+            const res = await fetch(`${API_URL}/authenticate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail, password: password })
+            });
+
+            if (res.ok) {
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('register-section').classList.add('hidden');
+                document.getElementById('otp-section').classList.remove('hidden');
+                showMsg("📧 Code envoyé ! Vérifiez votre email.", false);
+            } else {
+                showMsg("❌ Email ou mot de passe incorrect.", true);
+            }
+        } catch (e) { showMsg("❌ Erreur de connexion.", true); }
+    }
+
+    // --- Phase 2 OTP ---
+    async function confirmOtp() {
+        const code = document.getElementById('otp-code').value;
+
+        try {
+            const res = await fetch(`${API_URL}/verify-otp?email=${userEmail}&code=${code}`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+
+            if (res.ok && data.token) {
+                localStorage.setItem('smart_token', data.token);
+                showMsg("✅ Accès autorisé ! Redirection...", false);
+                setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
+            } else {
+                showMsg("❌ Code incorrect ou expiré.", true);
+            }
+        } catch (e) { showMsg("❌ Erreur lors de la vérification.", true); }
+    }
+</script>
+</body>
+</html>

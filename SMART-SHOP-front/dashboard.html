@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>SMART-SHOP | Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 40px; transition: background 0.5s; }
+        .card { background: white; padding: 30px; border-radius: 15px; max-width: 700px; margin: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+
+        /* Styles pour l'ADMIN (Jaune) */
+        .theme-admin { background: #f1c40f; }
+        .theme-admin h1 { color: #8a6d3b; }
+
+        /* Styles pour l'USER (Vert) */
+        .theme-user { background: #2ecc71; }
+        .theme-user h1 { color: #1e8449; }
+
+        .btn-logout { background: #34495e; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; float: right; }
+        .content-box { margin-top: 30px; padding: 20px; border-radius: 10px; background: rgba(255,255,255,0.8); }
+    </style>
+</head>
+<body>
+
+<div class="card" id="main-card">
+    <button class="btn-logout" onclick="logout()">Déconnexion</button>
+    <h1 id="welcome-msg">Chargement...</h1>
+
+    <div id="role-display" style="font-weight: bold; margin-bottom: 20px;"></div>
+
+    <div class="content-box" id="content">
+    </div>
+</div>
+
+<script>
+    // 1. Vérification session
+    const token = localStorage.getItem('smart_token');
+    if (!token) { window.location.href = 'test.html'; }
+
+    // 2. Fonction pour décoder le JWT sans bibliothèque externe
+    function parseJwt(token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            return JSON.parse(window.atob(base64));
+        } catch (e) { return null; }
+    }
+
+    // 3. Logique d'affichage selon le rôle
+    const decoded = parseJwt(token);
+    const body = document.body;
+    const content = document.getElementById('content');
+    const welcome = document.getElementById('welcome-msg');
+
+    // Note : Dans ton Backend, l'email est stocké dans 'sub'
+    welcome.innerText = `Bienvenue, ${decoded.sub}`;
+
+    // On va faire un appel à l'API pour confirmer le rôle (plus sûr)
+    async function checkAccess() {
+        try {
+            // On tente d'appeler l'espace Admin
+            const res = await fetch('http://localhost:8080/api/v1/backoffice/stats', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                // C'est un ADMIN
+                body.className = 'theme-admin';
+                document.getElementById('role-display').innerText = "📍 Espace Commerçant (Back Office)";
+                content.innerHTML = "<h3>🛠️ Gestion Boutique</h3><p>Ici vous pouvez ajouter des vêtements, voir les ventes et gérer le stock.</p>";
+            } else {
+                // C'est un USER
+                body.className = 'theme-user';
+                document.getElementById('role-display').innerText = "👤 Espace Client (Front Office)";
+                content.innerHTML = "<h3>🛍️ Shopping</h3><p>Parcourez notre catalogue et profitez des dernières tendances !</p>";
+            }
+        } catch (e) { console.error("Erreur API"); }
+    }
+
+    checkAccess();
+
+    function logout() {
+        localStorage.removeItem('smart_token');
+        window.location.href = 'test.html';
+    }
+</script>
+</body>
+</html>

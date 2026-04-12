@@ -1,0 +1,64 @@
+services:
+  # --- BASE DE DONNÉES ---
+  db:
+    image: 'pgvector/pgvector:pg16'
+    container_name: smart-shop-db
+    environment:
+      - POSTGRES_DB=smartshop_db
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_USER=myuser
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d smartshop_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smart-network
+
+  # --- BACKEND ---
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-shop-api
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/smartshop_db
+      - SPRING_DATASOURCE_USERNAME=myuser
+      - SPRING_DATASOURCE_PASSWORD=secret
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SECURITY_JWT_SECRET_KEY=404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      - SPRING_MAIL_HOST=sandbox.smtp.mailtrap.io
+      - SPRING_MAIL_PORT=2525
+      - SPRING_MAIL_USERNAME=c6ced8871c6bfc
+      - SPRING_MAIL_PASSWORD=439cdeed132b6b
+    networks:
+      - smart-network
+
+  # --- FRONTEND ---
+  frontend:
+    build:
+      context: ./SMART-SHOP-front
+      dockerfile: Dockerfile
+    container_name: smart-shop-ui
+    ports:
+      - '80:80'
+    depends_on:
+      - backend
+    networks:
+      - smart-network
+
+networks:
+  smart-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
